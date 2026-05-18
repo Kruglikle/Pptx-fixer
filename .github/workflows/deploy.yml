@@ -1,0 +1,30 @@
+name: Deploy to server via SSH
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run remote deploy via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            echo "Deploy started: $(date)"
+            cd "${{ secrets.REMOTE_PATH }}"
+            git fetch --all --prune
+            git reset --hard origin/${{ secrets.GIT_BRANCH }}
+            docker compose pull || true
+            docker compose up -d --remove-orphans --build
+            docker compose ps
+            echo "Deploy finished: $(date)"

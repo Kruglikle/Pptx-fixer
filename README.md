@@ -54,3 +54,30 @@ docker-compose -f docker-compose.yml -f docker-compose.ollama.yml exec ollama ol
 ```
 
 После этого включите переключатель `Ollama` в интерфейсе.
+
+## Автоматический деплой через GitHub Actions
+
+Добавлен workflow `./github/workflows/deploy.yml`, который выполняет SSH-подключение
+к вашему серверу и запускает команды для обновления кода и перезапуска Docker Compose.
+
+Требуемые секреты репозитория (Settings → Secrets):
+- `SSH_HOST` — адрес сервера (например `example.com`)
+- `SSH_PORT` — порт SSH (по умолчанию `22`)
+- `SSH_USERNAME` — пользователь для SSH (например `deploy`)
+- `SSH_PRIVATE_KEY` — приватный ключ (PEM) без пароля
+- `REMOTE_PATH` — путь к директории проекта на сервере (где лежит `docker-compose.yml`)
+- `GIT_BRANCH` — ветка для деплоя (например `main`)
+
+После добавления секретов и пуша в ветку `main` workflow автоматически выполнит
+на сервере:
+
+```bash
+cd $REMOTE_PATH
+git fetch --all --prune
+git reset --hard origin/$GIT_BRANCH
+docker compose pull || true
+docker compose up -d --remove-orphans --build
+```
+
+Если хочешь, могу помочь подготовить и загрузить приватный ключ на сервер и
+завершить настройку секретов — скажи, когда будешь готов.
