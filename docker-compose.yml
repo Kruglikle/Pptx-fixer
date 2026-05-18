@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      CORS_ORIGINS: "*"
+      ENABLE_LANGUAGE_TOOL: "false"
+      ENABLE_OLLAMA: "false"
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: qwen2.5:7b
+      WORDFREQ_TOP_N: "60000"
+    ports:
+      - "8005:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      NUXT_API_INTERNAL_BASE: http://backend:8000
+    ports:
+      - "3005:3000"
+    depends_on:
+      - backend
