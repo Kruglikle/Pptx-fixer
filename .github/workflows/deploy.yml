@@ -24,7 +24,7 @@ jobs:
             cd "${{ secrets.REMOTE_PATH }}"
             git fetch --all --prune
             git reset --hard origin/${{ secrets.GIT_BRANCH }}
-            docker compose pull || true
-            docker compose up -d --remove-orphans --build
-            docker compose ps
+            sudo -n docker-compose down --remove-orphans
+            sudo -n docker-compose up -d --build --remove-orphans
+            sudo -n docker-compose ps
             echo "Deploy finished: $(date)"

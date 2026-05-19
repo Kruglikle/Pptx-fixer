@@ -4,6 +4,7 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 from zipfile import BadZipFile, ZipFile
 
 from pptx import Presentation
@@ -12,6 +13,7 @@ from .schemas import SlideText
 
 
 SLIDE_XML_RE = re.compile(r"^ppt/slides/slide(\d+)\.xml$")
+REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 
 
 def extract_pptx_slides(path: Path) -> list[SlideText]:
@@ -65,16 +67,76 @@ def _extract_slides_from_zip(path: Path) -> list[SlideText]:
 
             slides: list[SlideText] = []
             for index, name in slide_names:
-                slides.append(SlideText(index=index, text=_extract_xml_text(archive.read(name))))
+                slides.append(SlideText(index=index, text=_extract_zip_slide_text(archive, name)))
             return slides
     except (BadZipFile, KeyError, ET.ParseError):
         return []
 
 
-def _extract_xml_text(xml: bytes) -> str:
-    root = ET.fromstring(xml)
+def _extract_zip_slide_text(archive: ZipFile, slide_name: str) -> str:
     parts: list[str] = []
     seen: set[str] = set()
+
+    _append_xml_text(archive.read(slide_name), parts, seen)
+
+    for related_name in _iter_slide_related_xml_names(archive, slide_name):
+        try:
+            _append_xml_text(archive.read(related_name), parts, seen)
+        except (KeyError, ET.ParseError):
+            continue
+
+    return "\n".join(parts)
+
+
+def _iter_slide_related_xml_names(archive: ZipFile, slide_name: str) -> list[str]:
+    slide_path = Path(slide_name)
+    rels_name = slide_path.parent / "_rels" / f"{slide_path.name}.rels"
+    try:
+        root = ET.fromstring(archive.read(str(rels_name).replace("\\", "/")))
+    except (KeyError, ET.ParseError):
+        return []
+
+    names: list[str] = []
+    archive_names = set(archive.namelist())
+    for relationship in root.findall(f"{REL_NS}Relationship"):
+        target = relationship.attrib.get("Target", "")
+        if not target or relationship.attrib.get("TargetMode") == "External":
+            continue
+
+        normalized = _normalize_related_target(slide_path.parent, target)
+        if normalized.endswith(".xml") and normalized in archive_names:
+            names.append(normalized)
+
+    return names
+
+
+def _normalize_related_target(base_dir: Path, target: str) -> str:
+    target = unquote(target).replace("\\", "/")
+    if target.startswith("/"):
+        return target.lstrip("/")
+
+    parts: list[str] = []
+    for part in f"{base_dir.as_posix()}/{target}".split("/"):
+        if not part or part == ".":
+            continue
+        if part == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(part)
+
+    return "/".join(parts)
+
+
+def _extract_xml_text(xml: bytes) -> str:
+    parts: list[str] = []
+    seen: set[str] = set()
+    _append_xml_text(xml, parts, seen)
+    return "\n".join(parts)
+
+
+def _append_xml_text(xml: bytes, parts: list[str], seen: set[str]) -> None:
+    root = ET.fromstring(xml)
 
     for paragraph in root.iter():
         if _local_name(paragraph.tag) != "p":
@@ -87,7 +149,9 @@ def _extract_xml_text(xml: bytes) -> str:
         )
         _append_text(text, parts, seen)
 
-    return "\n".join(parts)
+    for node in root.iter():
+        if _local_name(node.tag) in {"t", "v"}:
+            _append_text(node.text, parts, seen)
 
 
 def _collect_shape_text(shape: Any, parts: list[str], seen: set[str]) -> None:
