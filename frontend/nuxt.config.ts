@@ -9,10 +9,7 @@ export default defineNuxtConfig({
     typeCheck: true
   },
   runtimeConfig: {
-    apiInternalBase: process.env.NUXT_API_INTERNAL_BASE || 'http://backend:8000',
-    public: {
-      apiBase: process.env.NUXT_API_BASE || 'http://localhost:8005'
-    }
+    apiInternalBase: process.env.NUXT_API_INTERNAL_BASE || 'http://backend:8000'
   },
   vuetify: {
     vuetifyOptions: {

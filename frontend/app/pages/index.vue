@@ -54,7 +54,6 @@ const issueColors: Record<IssueType, string> = {
   grammar: 'primary'
 }
 
-const config = useRuntimeConfig()
 const resultIssues = computed(() => result.value?.issues ?? [])
 const resultSlides = computed(() => result.value?.slides ?? [])
 const resultFilename = computed(() => result.value?.filename ?? selectedFile.value?.name ?? 'presentation.pptx')
@@ -162,7 +161,7 @@ async function runCheck() {
   form.append('use_llm', String(useLlm.value))
 
   try {
-    result.value = await $fetch<CheckResponse>(`${config.public.apiBase}/api/check-pptx`, {
+    result.value = await $fetch<CheckResponse>('/api/check-pptx', {
       method: 'POST',
       body: form
     })
